@@ -17,13 +17,14 @@ XINERAMAFLAGS = -DXINERAMA
 # freetype
 FREETYPELIBS = -lfontconfig -lXft
 FREETYPEINC = /usr/include/freetype2
-# OpenBSD (uncomment)
-#MANPREFIX = ${PREFIX}/man
-#FREETYPEINC = ${X11INC}/freetype2
+
+# yajl
+YAJLLIBS = -lyajl
+YAJLINC = /usr/include/yajl
 
 # includes and libs
-INCS = -I${X11INC} -I${FREETYPEINC}
-LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${FREETYPELIBS} -lX11-xcb -lxcb -lxcb-res
+INCS = -I${X11INC} -I${FREETYPEINC} -I${YAJLINC}
+LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${FREETYPELIBS} ${YAJLLIBS} -lX11-xcb -lxcb -lxcb-res
 
 # Optional compiler optimisations may create smaller binaries and
 # faster code, but increases compile time.
