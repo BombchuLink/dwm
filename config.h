@@ -38,9 +38,18 @@ typedef struct {
 	const void *cmd;
 } Sp;
 
+typedef struct {
+	int mon;          
+	unsigned int sid;
+} ScratchMonArg;
+
+static const ScratchMonArg sm2m0 = { .mon = 0, .sid = 2 };
+static const ScratchMonArg sm2m1 = { .mon = 1, .sid = 2 };
+
+
 const char *spcmd1[] = {TERMINAL, "-n", "spterm", "-g", "140x85+2+2", NULL };
 const char *spcmd2[] = {TERMINAL, "-n", "spcalc", "-f", "monospace:size=16", "-g", "50x20", "-e", "calculate.sh", NULL };
-const char *spcmd3[] = {TERMINAL, "-n", "muterm", "-g", "340x85", "-e", "ncmpcpp", NULL };
+const char *spcmd3[] = {TERMINAL, "-n", "muterm", "-g", "340x85", "-e", "jellyfin-tui", NULL };
 
 static Sp scratchpads[] = {
 	/* name          cmd  */
@@ -58,7 +67,7 @@ static const Rule rules[] = {
  *	WM_NAME(STRING) = title
 */
 /* class    instance      title       	 tags mask   float,center  isterminal  noswallow  monitor  floatsxywh*/
-{ "discord"  ,NULL,       NULL,          1,          0,1,          0,          0,          0,      -1,-1,-1,-1},
+{ "discord"  ,NULL,       NULL,          1,          0,1,          0,          0,          0,      600,400,-1,-1},
 { "tw",       NULL,       NULL,          0,          1,0,          0,          1,         -1,      800,150,-1,-1},
 { TERMCLASS,  NULL,       NULL,       	 0,          0,1,          1,          0,         -1,      -1,-1,-1,-1},
 { NULL,       NULL,       "Event Tester",0,          0,1,          0,          1,         -1,      -1,-1,-1,-1},
@@ -122,11 +131,11 @@ static const char *termcmd[]  = { TERMINAL, NULL };
  */
 ResourcePref resources[] = {
 		{ "color0",		STRING,	&normbordercolor },
-		{ "color3",		STRING,	&selbordercolor },
+		{ "color8",		STRING,	&selbordercolor },
 		{ "color0",		STRING,	&normbgcolor },
-		{ "color4",		STRING,	&normfgcolor },
+		{ "color8",		STRING,	&normfgcolor },
 		{ "color0",		STRING,	&selfgcolor },
-		{ "color4",		STRING,	&selbgcolor },
+		{ "color8",		STRING,	&selbgcolor },
 		{ "borderpx",		INTEGER, &borderpx },
 		{ "snap",		INTEGER, &snap },
 		{ "showbar",		INTEGER, &showbar },
@@ -194,8 +203,8 @@ static const Key keys[] = {
 /*	{ MODKEY|ShiftMask,	XK_i,          setlayout,              {.v = &layouts[7]} }, */ /* centeredfloatingmaster */
 	{ MODKEY,			XK_o,          incnmaster,             {.i = +1 } },
 	{ MODKEY|ShiftMask,	XK_o,          incnmaster,             {.i = -1 } },
-	{ MODKEY,			XK_p,          spawn,                  {.v = (const char*[]){ "mpc", "toggle", NULL } } },
-	{ MODKEY|ShiftMask,	XK_p,          spawn,                  SHCMD("mpc pause; pauseallmpv") },
+/*	{ MODKEY,			XK_p,          spawn,                  {.v = (const char*[]){ "mpc", "toggle", NULL } } },*/
+/*	{ MODKEY|ShiftMask,	XK_p,          spawn,                  SHCMD("mpc pause; pauseallmpv") }, */
 	{ MODKEY|ShiftMask,	XK_bracketleft, spawn,                 {.v = (const char*[]){ "mpc", "seek", "-10", NULL } } },
 	{ MODKEY|ShiftMask,	XK_bracketright, spawn,                {.v = (const char*[]){ "mpc", "seek", "+10", NULL } } },
 	{ MODKEY,			XK_backslash,  view,                   {0} },
@@ -228,11 +237,12 @@ static const Key keys[] = {
 	{ MODKEY,			XK_b,          togglebar,              {0} },
 /*  { MODKEY|ShiftMask,	XK_b,          spawn,                  SHCMD("") }, */
 /*	{ MODKEY|ShiftMask,	XK_n,          spawn,                  SHCMD(TERMINAL " -e newsboat ; pkill -RTMIN+6 dwmblocks") }, */
-    { MODKEY,	        XK_m,          togglescratch,          {.ui = 2} },
-	{ MODKEY,			XK_comma,      spawn,                  {.v = (const char*[]){ "mpc", "prev", NULL } } },
+/*  { MODKEY,	        XK_m,          togglescratch,          {.ui = 2} }, */
+	{ MODKEY, 			XK_m,		   togglescratchmon,       { .v = &sm2m0 } },
+/*	{ MODKEY,			XK_comma,      spawn,                  {.v = (const char*[]){ "mpc", "prev", NULL } } },
 	{ MODKEY|ShiftMask,	XK_comma,      spawn,                  {.v = (const char*[]){ "mpc", "seek", "0%", NULL } } },
 	{ MODKEY,			XK_period,     spawn,                  {.v = (const char*[]){ "mpc", "next", NULL } } },
-	{ MODKEY|ShiftMask,	XK_period,     spawn,                  {.v = (const char*[]){ "mpc", "repeat", NULL } } },
+	{ MODKEY|ShiftMask,	XK_period,     spawn,                  {.v = (const char*[]){ "mpc", "repeat", NULL } } }, */
 
 	{ MODKEY,			XK_h,       focusmon,               {.i = -1 } },
 	{ MODKEY,			XK_l,      focusmon,               {.i = +1 } },
@@ -273,7 +283,7 @@ static const Key keys[] = {
 	{ 0, XF86XK_AudioStop,                         spawn,                  {.v = (const char*[]){ "mpc", "stop", NULL } } },
 	{ 0, XF86XK_AudioRewind,                       spawn,                  {.v = (const char*[]){ "mpc", "seek", "-10", NULL } } },
 	{ 0, XF86XK_AudioForward,                      spawn,                  {.v = (const char*[]){ "mpc", "seek", "+10", NULL } } },
-	{ 0, XF86XK_AudioMedia,                        spawn,                  {.v = (const char*[]){ TERMINAL, "-e", "ncmpcpp", NULL } } },
+	{ 0, XF86XK_AudioMedia,                        spawn,                  {.v = (const char*[]){ TERMINAL, "-e", "jellyfin-tui", NULL } } },
 	{ 0, XF86XK_AudioMicMute,                      spawn,                  SHCMD("pactl set-source-mute @DEFAULT_SOURCE@ toggle") },
 /*  { 0, XF86XK_PowerOff,                       spawn,                  {.v = (const char*[]){ "sysact", NULL } } }, */
 	{ 0, XF86XK_Calculator,                        spawn,                  {.v = (const char*[]){ TERMINAL, "-e", "bc", "-l", NULL } } },

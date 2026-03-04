@@ -292,6 +292,7 @@ static void sendnextmon(const Arg *arg);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void togglescratch(const Arg *arg);
+static void togglescratchmon(const Arg *arg);
 static void togglesticky(const Arg *arg);
 static void togglefullscr(const Arg *arg);
 static void toggletag(const Arg *arg);
@@ -2354,6 +2355,24 @@ togglescratch(const Arg *arg)
 		selmon->tagset[selmon->seltags] |= scratchtag;
 		spawn(&sparg);
 	}
+}
+
+//force scratch to target monitor
+void
+togglescratchmon(const Arg *arg)
+{
+	const ScratchMonArg *a = arg->v;
+	Monitor *m;
+
+	for (m = mons; m && m->num != a->mon; m = m->next);
+	if (!m)
+		return;
+
+	selmon = m;
+	focus(NULL);
+
+	Arg t = {.ui = a->sid};
+	togglescratch(&t);
 }
 
 void
