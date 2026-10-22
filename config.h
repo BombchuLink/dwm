@@ -67,9 +67,13 @@ static const Rule rules[] = {
  *	WM_NAME(STRING) = title
 */
 /* class    instance      title       	 tags mask   float,center  isterminal  noswallow  monitor  floatsxywh*/
+{ "fcadefbneo.exe", "fcadefbneo.exe", NULL, 0,       1,1,          0,          0,          1,      -1,-1,-1,-1 },
+{ "NULL" 	 ,NULL,       "BitWarden",   1,          1,1,          0,          0,          0,      -1,-1,-1,-1},
 { "discord"  ,NULL,       NULL,          1,          0,1,          0,          0,          0,      600,400,-1,-1},
+{ "zenity"   ,NULL,       NULL,          0,          1,1,          0,          0,          0,      600,400,-1,-1},
 { "tw",       NULL,       NULL,          0,          1,0,          0,          1,         -1,      800,150,-1,-1},
-{ TERMCLASS,  NULL,       NULL,       	 0,          0,1,          1,          0,         -1,      -1,-1,-1,-1},
+{ "Deadlock", "Deadlock",  NULL,       	 0,   		 1,1,          0,          0,         -1,      -1,-1,-1,-1},
+{ TERMCLASS,  NULL,       NULL,       	 0,          0,1,          0,          1,         -1,      -1,-1,-1,-1},
 { NULL,       NULL,       "Event Tester",0,          0,1,          0,          1,         -1,      -1,-1,-1,-1},
 { TERMCLASS,  "floatterm", NULL,       	 0,          1,1,          1,          0,         -1,      -1,-1,-1,-1},
 { TERMCLASS,  "bg",        NULL,       	 1 << 7,     0,1,          1,          0,         -1,      -1,-1,-1,-1},
@@ -186,8 +190,9 @@ static const Key keys[] = {
 	{ MODKEY,			XK_Tab,        view,                   {0} },
 /*  { MODKEY|ShiftMask,	XK_Tab,	       spawn,                  SHCMD("") }, */
 	{ MODKEY,			XK_q,          killclient,             {0} },
-	{ MODKEY|ShiftMask,	XK_q,          spawn,                  {.v = (const char*[]){ "sysact", NULL } } },
-	{ MODKEY,			XK_w,          spawn,                  {.v = (const char*[]){ BROWSER, NULL } } },
+	{ MODKEY|ShiftMask, XK_q, spawn, {.v = (const char*[]){ "/home/blink/.config/scripts/killnow", NULL } } },
+/*	{ MODKEY|ShiftMask,	XK_q,          spawn,                  {.v = (const char*[]){ "sysact", NULL } } }, */
+/*	{ MODKEY,			XK_w,          spawn,                  {.v = (const char*[]){ BROWSER, NULL } } }, */
 	{ MODKEY|ShiftMask,	XK_w,          spawn,                  {.v = (const char*[]){ TERMINAL, "-e", "sudo", "nmtui", NULL } } },
 	{ MODKEY,			XK_e,          spawn,                  {.v = (const char*[]){ "discord", NULL } } },
 /*	{ MODKEY,			XK_r,          spawn,                  {.v = (const char*[]){ TERMINAL, "-e", "lfub", NULL } } }, */
