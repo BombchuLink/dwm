@@ -20,6 +20,7 @@
  *
  * To understand everything else, start reading main().
  */
+#define _GNU_SOURCE /* POSIX_SPAWN_SETSID */
 #include <errno.h>
 #include <locale.h>
 #include <signal.h>
@@ -329,6 +330,10 @@ static int isdescprocess(pid_t p, pid_t c);
 static Client *swallowingclient(Window w);
 static Client *termforwin(const Client *c);
 static pid_t winpid(Window w);
+static pid_t getsessionid(pid_t p);
+static int launchtags(Client *c);
+static int hasenv(pid_t p, const char *var);
+static int getenvof(pid_t p, const char *name, char *buf, size_t len);
 
 
 /* variables */
@@ -360,6 +365,9 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[UnmapNotify] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast];
+/* remember where each spawn() was launched from, so its windows open there */
+static struct { pid_t sid; Monitor *mon; unsigned int tags; } launches[32];
+static unsigned int nextlaunch;
 static int epoll_fd;
 static int dpy_fd;
 static int restart = 0;
@@ -438,6 +446,8 @@ applyrules(Client *c)
 		XFree(ch.res_class);
 	if (ch.res_name)
 		XFree(ch.res_name);
+	if (!(c->tags & TAGMASK) && launchtags(c))
+		return;
 	c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : (c->mon->tagset[c->mon->seltags] & ~SPTAGMASK);
 }
 
@@ -1337,6 +1347,15 @@ manage(Window w, XWindowAttributes *wa)
 		c->mon = selmon;
 		applyrules(c);
 		term = termforwin(c);
+		/* DWM_FLOAT=1 in the program's environment: float it, centered,
+		 * at the size it asked for */
+		if (hasenv(c->pid, "DWM_FLOAT=1")) {
+			c->isfloating = 1;
+			c->noswallow = 1;
+			term = NULL;
+			c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
+			c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
+		}
 	}
 
 	if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
@@ -1394,7 +1413,7 @@ manage(Window w, XWindowAttributes *wa)
 		(unsigned char *) &(c->win), 1);
 	XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h); /* some windows require this */
 	setclientstate(c, NormalState);
-	if(selmon->sel && selmon->sel->isfullscreen && !c->isfloating)
+	if(selmon->sel && selmon->sel->isfullscreen && !c->isfloating && c->mon == selmon && ISVISIBLE(c))
 		setfullscreen(selmon->sel, 0);
 	if (c->mon == selmon)
 		unfocus(selmon->sel, 0);
@@ -2204,7 +2223,21 @@ extern char **environ;
 void
 spawn(const Arg *arg)
 {
-	posix_spawnp(NULL, ((char **)arg->v)[0], NULL, NULL, (char **)arg->v, environ);
+	pid_t pid;
+	posix_spawnattr_t attr;
+	unsigned int launchtagset = selmon->tagset[selmon->seltags] & TAGMASK & ~SPTAGMASK;
+
+	/* own session per spawn, so descendants can be traced back to this launch
+	 * even after intermediate processes (e.g. dmenu_run) exit */
+	posix_spawnattr_init(&attr);
+	posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID);
+	if (posix_spawnp(&pid, ((char **)arg->v)[0], NULL, &attr, (char **)arg->v, environ) == 0 && launchtagset) {
+		launches[nextlaunch].sid = pid;
+		launches[nextlaunch].mon = selmon;
+		launches[nextlaunch].tags = launchtagset;
+		nextlaunch = (nextlaunch + 1) % LENGTH(launches);
+	}
+	posix_spawnattr_destroy(&attr);
 }
 
 void
@@ -2827,6 +2860,113 @@ getparentprocess(pid_t p)
 	free(proc);
 #endif
 	return (pid_t)v;
+}
+
+/* copy the value of env var name in process p's environment into buf */
+int
+getenvof(pid_t p, const char *name, char *buf, size_t len)
+{
+	int found = 0;
+#if defined(__linux__)
+	FILE *f;
+	char path[64], *line = NULL;
+	size_t cap = 0, n = strlen(name);
+
+	if (!p)
+		return 0;
+	snprintf(path, sizeof(path), "/proc/%u/environ", (unsigned)p);
+	if (!(f = fopen(path, "r")))
+		return 0;
+	while (!found && getdelim(&line, &cap, '\0', f) > 0)
+		if (!strncmp(line, name, n) && line[n] == '=') {
+			snprintf(buf, len, "%s", line + n + 1);
+			found = 1;
+		}
+	free(line);
+	fclose(f);
+#endif
+	return found;
+}
+
+/* var is "NAME=value" */
+int
+hasenv(pid_t p, const char *var)
+{
+	char name[64], val[64];
+	const char *eq = strchr(var, '=');
+
+	if (!eq || eq - var >= (int)sizeof(name))
+		return 0;
+	snprintf(name, sizeof(name), "%.*s", (int)(eq - var), var);
+	return getenvof(p, name, val, sizeof(val)) && !strcmp(val, eq + 1);
+}
+
+pid_t
+getsessionid(pid_t p)
+{
+	int v = 0;
+#if defined(__linux__)
+	FILE *f;
+	char buf[512], *s;
+	size_t n;
+
+	snprintf(buf, sizeof(buf), "/proc/%u/stat", (unsigned)p);
+	if (!(f = fopen(buf, "r")))
+		return 0;
+	n = fread(buf, 1, sizeof(buf) - 1, f);
+	fclose(f);
+	buf[n] = '\0';
+	/* fields after ")" are: state ppid pgrp session */
+	if (!(s = strrchr(buf, ')')) || sscanf(s + 1, " %*c %*d %*d %d", &v) != 1)
+		v = 0;
+#endif
+	return (pid_t)v;
+}
+
+/* Place c on the tags it was launched from instead of the currently viewed
+ * ones: the tags of the closest ancestor window (e.g. the terminal it was run
+ * in), else the tags that were selected when dwm spawned it. */
+int
+launchtags(Client *c)
+{
+	pid_t p, sid;
+	Client *t;
+	Monitor *m;
+	unsigned int i, j;
+	char buf[32];
+
+	if (!c->pid)
+		return 0;
+	for (p = getparentprocess(c->pid); p > 1; p = getparentprocess(p))
+		for (m = mons; m; m = m->next)
+			for (t = m->clients; t; t = t->next)
+				if (t->pid == p && (t->tags & TAGMASK & ~SPTAGMASK)) {
+					c->mon = t->mon;
+					c->tags = t->tags & TAGMASK & ~SPTAGMASK;
+					return 1;
+				}
+	/* the terminal it was run from, even if the process was orphaned */
+	if (getenvof(c->pid, "WINDOWID", buf, sizeof(buf))
+	&& (t = wintoclient((Window)strtoul(buf, NULL, 10)))
+	&& (t->tags & TAGMASK & ~SPTAGMASK)) {
+		c->mon = t->mon;
+		c->tags = t->tags & TAGMASK & ~SPTAGMASK;
+		return 1;
+	}
+	if (!(sid = getsessionid(c->pid)))
+		return 0;
+	for (j = 1; j <= LENGTH(launches); j++) {
+		i = (nextlaunch + LENGTH(launches) - j) % LENGTH(launches);
+		if (launches[i].sid != sid)
+			continue;
+		for (m = mons; m && m != launches[i].mon; m = m->next);
+		if (!m)
+			return 0;
+		c->mon = m;
+		c->tags = launches[i].tags;
+		return 1;
+	}
+	return 0;
 }
 
 int
