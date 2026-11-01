@@ -295,6 +295,8 @@ static void togglefloating(const Arg *arg);
 static void togglescratch(const Arg *arg);
 static void togglescratchmon(const Arg *arg);
 static void togglesticky(const Arg *arg);
+static void toggleswallow(const Arg *arg);
+static void updateswallowprop(void);
 static void togglefullscr(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
@@ -365,6 +367,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[UnmapNotify] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast];
+static Atom swallowatom;
 /* remember where each spawn() was launched from, so its windows open there */
 static struct { pid_t sid; Monitor *mon; unsigned int tags; } launches[32];
 static unsigned int nextlaunch;
@@ -1419,7 +1422,7 @@ manage(Window w, XWindowAttributes *wa)
 		unfocus(selmon->sel, 0);
 	c->mon->sel = c;
 	XMapWindow(dpy, c->win);
-	if (term)
+	if (term && swallowenabled)
 		swallow(term, c);
 	arrange(c->mon);
 	focus(NULL);
@@ -2080,6 +2083,7 @@ setup(void)
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
 	netatom[NetClientInfo] = XInternAtom(dpy, "_NET_CLIENT_INFO", False);
+	swallowatom = XInternAtom(dpy, "_DWM_SWALLOW", False);
 	/* init cursors */
 	cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr);
 	cursor[CurResize] = drw_cur_create(drw, XC_sizing);
@@ -2104,6 +2108,7 @@ setup(void)
 		PropModeReplace, (unsigned char *) netatom, NetLast);
 	XDeleteProperty(dpy, root, netatom[NetClientList]);
 	XDeleteProperty(dpy, root, netatom[NetClientInfo]);
+	updateswallowprop();
 	/* select events */
 	wa.cursor = cursor[CurNormal]->cursor;
 	wa.event_mask = SubstructureRedirectMask|SubstructureNotifyMask
@@ -2362,6 +2367,29 @@ togglesticky(const Arg *arg)
 		return;
 	selmon->sel->issticky = !selmon->sel->issticky;
 	arrange(selmon);
+}
+
+/* only affects windows mapped from now on; existing swallows are left alone */
+void
+toggleswallow(const Arg *arg)
+{
+	pid_t pid;
+	char *cmd[] = { "polybar-msg", "action", "swallow", "hook", "0", NULL };
+
+	swallowenabled = !swallowenabled;
+	updateswallowprop();
+	XSync(dpy, False);
+	/* refresh the polybar indicator, which reads _DWM_SWALLOW */
+	posix_spawnp(&pid, cmd[0], NULL, NULL, cmd, environ);
+}
+
+/* publish the swallow state on the root window as _DWM_SWALLOW (1 or 0) */
+void
+updateswallowprop(void)
+{
+	long v = swallowenabled;
+	XChangeProperty(dpy, root, swallowatom, XA_CARDINAL, 32,
+		PropModeReplace, (unsigned char *) &v, 1);
 }
 
 void
